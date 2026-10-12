@@ -41,7 +41,7 @@ class WikipediaDataLoader:
                 break
 
             doc_id = item.get("id", f"doc_{i}")
-            content = item.get("text", item.get("content", ""))
+            content = item.get("passage", item.get("text", item.get("content", "")))
             title = item.get("title", "")
 
             metadata = {

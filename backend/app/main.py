@@ -12,15 +12,11 @@ from app.core.query.analyzer import QueryAnalyzer
 from app.core.query.optimizer import QueryOptimizer
 from app.data.loader import WikipediaDataLoader
 from app.core.models import Document
-
-
-rag_pipeline: Optional[RAGPipeline] = None
+from app.core.state import rag_pipeline
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global rag_pipeline
-
     print("Starting RAG application...")
     print("Loading dataset...")
 
@@ -32,14 +28,14 @@ async def lifespan(app: FastAPI):
     query_optimizer = QueryOptimizer()
     query_analyzer = QueryAnalyzer()
 
-    rag_pipeline = RAGPipeline(
+    rag_pipeline.set_pipeline(RAGPipeline(
         retriever=retriever,
         reranker=reranker,
         query_optimizer=query_optimizer,
         query_analyzer=query_analyzer,
-    )
+    ))
 
-    rag_pipeline.index_documents(documents)
+    rag_pipeline.get_pipeline().index_documents(documents)
     print(f"Indexed {len(documents)} documents")
     print("RAG pipeline ready!")
 

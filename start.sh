@@ -1,48 +1,63 @@
 #!/bin/bash
-# Start script for RAG Application
+# Start both frontend and backend in development mode
 
 set -e
 
 echo "Starting RAG Application..."
 
-# Check if docker-compose is available
-if command -v docker-compose &> /dev/null; then
-    echo "Using Docker Compose..."
-    docker-compose up --build
-elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
-    echo "Using Docker Compose V2..."
-    docker compose up --build
-else
-    echo "Docker Compose not found. Starting manually..."
-    
-    # Start backend
-    echo "Starting backend..."
-    cd backend
-    if [ ! -d "venv" ]; then
-        python3 -m venv venv
-    fi
-    source venv/bin/activate
-    pip install -r requirements.txt -q
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-    BACKEND_PID=$!
-    cd ..
-    
-    # Start frontend
-    echo "Starting frontend..."
-    cd frontend
-    if [ ! -d "node_modules" ]; then
-        npm install
-    fi
-    npm run dev &
-    FRONTEND_PID=$!
-    cd ..
-    
-    echo "Backend PID: $BACKEND_PID"
-    echo "Frontend PID: $FRONTEND_PID"
-    echo "Backend: http://localhost:8000"
-    echo "Frontend: http://localhost:3000"
-    echo "API Docs: http://localhost:8000/docs"
-    
-    # Wait for processes
-    wait $BACKEND_PID $FRONTEND_PID
+# Function to cleanup background processes on exit
+cleanup() {
+    echo "Shutting down..."
+    kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+    wait $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+    echo "Done."
+}
+trap cleanup EXIT INT TERM
+
+# Start backend
+echo "Starting backend on port 8000..."
+cd backend
+if [ ! -d "venv" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv venv
 fi
+source venv/bin/activate
+pip install -q -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
+BACKEND_PID=$!
+cd ..
+
+# Wait for backend to be ready
+echo "Waiting for backend to start..."
+for i in {1..30}; do
+    if curl -s http://localhost:8000/api/v1/health >/dev/null 2>&1; then
+        echo "Backend ready!"
+        break
+    fi
+    sleep 1
+done
+
+# Start frontend
+echo "Starting frontend on port 3000..."
+cd frontend
+if [ ! -d "node_modules" ]; then
+    echo "Installing frontend dependencies..."
+    npm install
+fi
+npm run dev &
+FRONTEND_PID=$!
+cd ..
+
+echo ""
+echo "========================================="
+echo "RAG Application is running!"
+echo "========================================="
+echo "Frontend: http://localhost:3000"
+echo "Backend API: http://localhost:8000"
+echo "API Docs: http://localhost:8000/docs"
+echo "========================================="
+echo "Press Ctrl+C to stop both services"
+echo ""
+
+# Wait for both processes
+wait $BACKEND_PID $FRONTEND_PID

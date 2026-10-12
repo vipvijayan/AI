@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from app.core.pipeline import RAGPipeline
 from app.core.models import RAGResponse, RetrievalResult
-from app.main import rag_pipeline
+from app.core.state import rag_pipeline
 
 
 router = APIRouter()
@@ -38,10 +38,11 @@ class StatsResponse(BaseModel):
 @router.post("/query", response_model=QueryResponse)
 async def query_rag(request: QueryRequest):
     """Execute RAG query"""
-    if not rag_pipeline:
+    if not rag_pipeline.is_ready():
         raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
 
-    response: RAGResponse = rag_pipeline.query(
+    pipeline = rag_pipeline.get_pipeline()
+    response: RAGResponse = pipeline.query(
         query=request.query,
         k=request.k,
         optimize_query=request.optimize_query,
@@ -66,10 +67,11 @@ async def query_rag_get(
     rerank_k: int = Query(5, ge=1, le=20),
 ):
     """Execute RAG query via GET"""
-    if not rag_pipeline:
+    if not rag_pipeline.is_ready():
         raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
 
-    response: RAGResponse = rag_pipeline.query(
+    pipeline = rag_pipeline.get_pipeline()
+    response: RAGResponse = pipeline.query(
         query=q,
         k=k,
         optimize_query=optimize_query,
@@ -88,10 +90,11 @@ async def query_rag_get(
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats():
     """Get pipeline statistics"""
-    if not rag_pipeline:
+    if not rag_pipeline.is_ready():
         raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
 
-    stats = rag_pipeline.get_stats()
+    pipeline = rag_pipeline.get_pipeline()
+    stats = pipeline.get_stats()
     return StatsResponse(**stats)
 
 
@@ -100,5 +103,5 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "pipeline_ready": rag_pipeline is not None,
+        "pipeline_ready": rag_pipeline.is_ready(),
     }
